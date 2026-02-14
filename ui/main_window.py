@@ -15,9 +15,10 @@ from ui.app_list_frame import AppListFrame
 from ui.log_panel import LogPanel
 from ui.status_bar import StatusBar
 from ui.popup_menu import PopupMenu
+from version import VERSION
 
 _APP_NAME = "Freakuency"
-_VERSION = "0.3.0-alpha"
+_VERSION = VERSION
 _GITHUB_URL = "https://github.com/MoeJaafar/Freakuency"
 _STARTUP_REG_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 

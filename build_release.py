@@ -13,11 +13,12 @@ import sys
 import zipfile
 from pathlib import Path
 
+from version import VERSION
+
 ROOT = Path(__file__).parent
 SPEC_FILE = ROOT / "build.spec"
 BUILD_DIR = ROOT / "build"
 DIST_DIR = ROOT / "dist" / "Freakuency"
-VERSION = "0.3.0-alpha"
 
 
 def clean():
