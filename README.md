@@ -85,6 +85,9 @@ Three threads run concurrently:
 - **App scanner** — lists running processes with extracted icons
 - **Search** — filter apps by name or path
 - **Persistent config** — remembers your settings between sessions
+- **System tray** — minimize to tray, start/stop from tray icon
+- **Right-click menus** — open file location, copy path on any app row
+- **Collapsible log panel** — real-time activity log
 - **Race-free routing** — synchronous port-to-process lookup ensures new connections are routed correctly from the very first packet
 
 ## Requirements
@@ -112,10 +115,10 @@ Go to [Releases](https://github.com/MoeJaafar/Freakuency/releases) and download 
 
 ```bash
 pip install pyinstaller
-pyinstaller build.spec
+python build_release.py --zip
 ```
 
-Output lands in `dist/Freakuency/`.
+Output lands in `dist/Freakuency/`. The `--zip` flag creates a distributable zip file.
 
 ## Usage
 
@@ -161,9 +164,12 @@ Freakuency/
 ├── main.py                 # Entry point — UAC admin escalation
 ├── app.py                  # Application controller
 ├── build.spec              # PyInstaller build config
+├── build_release.py        # Build + zip packaging script
 ├── requirements.txt        # Dependencies
 ├── assets/
 │   ├── default_icon.png    # Fallback icon
+│   ├── freakuency.ico      # Window/taskbar icon
+│   ├── purple_theme.json   # CustomTkinter color theme
 │   └── freakuency-logo-v5.svg  # Logo (SVG source)
 ├── core/
 │   ├── split_engine.py     # Packet interception & rewriting (WinDivert)
@@ -173,8 +179,9 @@ Freakuency/
 └── ui/
     ├── main_window.py      # Window layout (CustomTkinter)
     ├── config_frame.py     # Controls — start/stop, mode, VPN info
-    ├── app_list_frame.py   # Tabbed app list (Apps / All Processes)
+    ├── app_list_frame.py   # Tabbed app list (Active / Apps / All Processes)
     ├── app_row.py          # App row — icon, name, path, toggle
+    ├── popup_menu.py       # Custom dark-themed popup menus
     ├── status_bar.py       # Live stats — duration, upload/download
     ├── log_panel.py        # Collapsible real-time log viewer
     └── logo.py             # Logo & icon rendering (Pillow)
@@ -212,6 +219,7 @@ VPN clients override default routes with `/1` routes (`0.0.0.0/1` + `128.0.0.0/1
 | [psutil](https://github.com/giampaolo/psutil) | Process enumeration, network stats |
 | [pydivert](https://github.com/ffalcinelli/pydivert) | WinDivert bindings (kernel packet capture) |
 | [Pillow](https://github.com/python-pillow/Pillow) | Icon extraction & image processing |
+| [pystray](https://github.com/moses-palmer/pystray) | System tray icon & menu |
 
 ## Limitations
 
