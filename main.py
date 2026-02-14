@@ -1,5 +1,5 @@
 """
-Split Tunnel — Entry point.
+Freakuency — Entry point.
 Ensures admin privileges before launching the application.
 (Admin is required for WinDivert packet interception.)
 """

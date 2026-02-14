@@ -1,5 +1,5 @@
 """
-Split Tunnel VPN — Application controller.
+Freakuency — Application controller.
 Detects a running VPN connection and manages the split tunnel engine.
 Handles persistence of user settings.
 """
@@ -10,6 +10,7 @@ import os
 import threading
 
 import psutil
+import pystray
 from PIL import Image
 
 from core.split_engine import SplitEngine
@@ -18,6 +19,7 @@ from core.network_utils import (
     get_gateway_for_interface,
 )
 from ui.main_window import MainWindow
+from ui.logo import render_app_icon
 
 log = logging.getLogger(__name__)
 
@@ -43,18 +45,33 @@ class SplitTunnelApp:
         # Load default icon
         default_icon = self._load_default_icon()
 
-        # Create the window
+        # Create the window — X button hides to tray, not exit
         self._window = MainWindow(
             on_start=self._on_start,
             on_stop=self._on_stop,
             on_mode_change=self._on_mode_change,
             on_toggle=self._on_app_toggle,
-            on_close=self._on_close,
+            on_close=self._hide_to_tray,
+            on_exit=self._full_exit,
             default_icon=default_icon,
+            on_export_config=self._export_config,
+            on_import_config=self._import_config,
         )
+
+        # Attach the log panel handler to the root logger so all
+        # core.split_engine, core.network_utils, etc. messages appear.
+        ui_handler = self._window.log_panel.create_handler()
+        logging.getLogger().addHandler(ui_handler)
+
+        # System tray icon
+        self._tray_icon = None
+        self._setup_tray()
 
         # Restore persisted settings
         self._load_config()
+
+        # Auto-scan apps on startup (after a short delay so UI renders first)
+        self._window.after(300, self._window.app_list.refresh_apps)
 
     def run(self):
         """Start the application main loop."""
@@ -95,6 +112,37 @@ class SplitTunnelApp:
                 json.dump(cfg, f, indent=2)
         except Exception as e:
             log.warning(f"Failed to save config: {e}")
+
+    def _export_config(self, path):
+        """Export current config to a user-chosen file."""
+        try:
+            cfg = {
+                "mode": self._window.config_frame.mode,
+                "toggled_apps": list(self._window.app_list.get_toggled_apps()),
+            }
+            with open(path, "w") as f:
+                json.dump(cfg, f, indent=2)
+            log.info(f"Config exported to {path}")
+        except Exception as e:
+            log.warning(f"Failed to export config: {e}")
+
+    def _import_config(self, path):
+        """Import config from a user-chosen file."""
+        try:
+            with open(path, "r") as f:
+                cfg = json.load(f)
+
+            mode = cfg.get("mode", "vpn_default")
+            self._window.config_frame.set_mode(mode)
+            self._window.app_list.set_mode(mode)
+
+            toggled = cfg.get("toggled_apps", [])
+            self._window.app_list.set_toggled_apps(toggled)
+
+            self._save_config()
+            log.info(f"Config imported from {path}: mode={mode}, toggled={len(toggled)} apps")
+        except Exception as e:
+            log.warning(f"Failed to import config: {e}")
 
     # ------------------------------------------------------------------
     # Start / Stop split tunneling
@@ -261,17 +309,62 @@ class SplitTunnelApp:
         self._stats_job = self._window.after(2000, self._poll_stats)
 
     # ------------------------------------------------------------------
-    # Shutdown
+    # System tray
     # ------------------------------------------------------------------
 
-    def _on_close(self):
-        """Window close handler — clean up everything."""
+    def _setup_tray(self):
+        """Create the system tray icon with a right-click menu."""
+        icon_image = render_app_icon(64)
+        menu = pystray.Menu(
+            pystray.MenuItem("Show", self._tray_show, default=True),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem(
+                "Start",
+                self._tray_start,
+                visible=lambda item: not self._engine.running,
+            ),
+            pystray.MenuItem(
+                "Stop",
+                self._tray_stop,
+                visible=lambda item: self._engine.running,
+            ),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Exit", self._tray_exit),
+        )
+        self._tray_icon = pystray.Icon("Freakuency", icon_image, "Freakuency", menu)
+        threading.Thread(target=self._tray_icon.run, daemon=True).start()
+
+    def _hide_to_tray(self):
+        """Called when user clicks X — hide window, keep running in tray."""
+        self._window.withdraw()
+
+    def _tray_show(self, icon=None, item=None):
+        """Restore the window from the tray."""
+        self._window.after(0, self._window.deiconify)
+        self._window.after(10, self._window.lift)
+
+    def _tray_start(self, icon=None, item=None):
+        """Start split tunnel from tray."""
+        self._window.after(0, self._on_start)
+
+    def _tray_stop(self, icon=None, item=None):
+        """Stop split tunnel from tray."""
+        self._window.after(0, self._on_stop)
+
+    def _tray_exit(self, icon=None, item=None):
+        """Fully quit the application from the tray."""
+        self._window.after(0, self._full_exit)
+
+    def _full_exit(self):
+        """Clean up everything and destroy the app."""
         self._save_config()
         self._stop_stats_polling()
         try:
             self._stop_split_engine()
         except Exception:
             pass
+        if self._tray_icon:
+            self._tray_icon.stop()
         self._window.destroy()
 
     # ------------------------------------------------------------------
@@ -292,6 +385,6 @@ class SplitTunnelApp:
         """Show an error dialog to the user."""
         try:
             from tkinter import messagebox
-            messagebox.showerror("Split Tunnel — Error", message)
+            messagebox.showerror("Freakuency \u2014 Error", message)
         except Exception:
             log.error(f"Error dialog: {message}")

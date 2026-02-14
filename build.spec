@@ -46,6 +46,7 @@ a = Analysis(
         "psutil",
         "pydivert",
         "PIL",
+        "pystray",
     ],
     hookspath=[],
     hooksconfig={},
@@ -71,6 +72,7 @@ exe = EXE(
     upx=True,
     console=False,
     uac_admin=True,
+    icon=os.path.join("assets", "freakuency.ico"),
 )
 
 coll = COLLECT(

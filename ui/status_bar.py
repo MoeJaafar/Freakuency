@@ -1,40 +1,56 @@
 """
-Status bar — shows split tunnel stats at the bottom of the window.
+Status bar — shows Freakuency stats at the bottom of the window.
 """
 
 import customtkinter as ctk
 
 
 class StatusBar(ctk.CTkFrame):
-    """Bottom bar showing split tunnel statistics."""
+    """Bottom bar showing split tunnel statistics and log toggle."""
 
-    def __init__(self, master, **kwargs):
+    def __init__(self, master, on_log_toggle=None, **kwargs):
         super().__init__(master, height=40, **kwargs)
 
-        self.grid_columnconfigure((0, 1, 2, 3), weight=1)
+        self._on_log_toggle = on_log_toggle
+
+        self.grid_columnconfigure(0, weight=0)
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_columnconfigure(2, weight=0)
+        self.grid_columnconfigure(3, weight=0)
+        self.grid_columnconfigure(4, weight=0)
+
+        # Log toggle button (left side)
+        self._log_btn = ctk.CTkButton(
+            self, text="Log \u25bc", width=60, height=28,
+            font=("", 12),
+            fg_color="#333333", hover_color="#444444",
+            command=self._handle_log_toggle,
+        )
+        self._log_btn.grid(row=0, column=0, padx=(10, 5), pady=5, sticky="w")
 
         self._adapter_label = ctk.CTkLabel(
-            self, text="VPN: —", font=("", 12), text_color="gray"
+            self, text="VPN: \u2014", font=("", 12), text_color="gray"
         )
-        self._adapter_label.grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        self._adapter_label.grid(row=0, column=1, padx=10, pady=5, sticky="w")
 
         self._duration_label = ctk.CTkLabel(
-            self, text="Duration: —", font=("", 12), text_color="gray"
+            self, text="Duration: \u2014", font=("", 12), text_color="gray"
         )
-        self._duration_label.grid(row=0, column=1, padx=10, pady=5)
+        self._duration_label.grid(row=0, column=2, padx=10, pady=5)
 
         self._download_label = ctk.CTkLabel(
-            self, text="↓ 0 B", font=("", 12), text_color="gray"
+            self, text="\u2193 0 B", font=("", 12), text_color="gray"
         )
-        self._download_label.grid(row=0, column=2, padx=10, pady=5)
+        self._download_label.grid(row=0, column=3, padx=10, pady=5)
 
         self._upload_label = ctk.CTkLabel(
-            self, text="↑ 0 B", font=("", 12), text_color="gray"
+            self, text="\u2191 0 B", font=("", 12), text_color="gray"
         )
-        self._upload_label.grid(row=0, column=3, padx=10, pady=5, sticky="e")
+        self._upload_label.grid(row=0, column=4, padx=(10, 10), pady=5, sticky="e")
 
         self._connected = False
         self._update_job = None
+        self._log_visible = False
 
     def set_vpn_adapter(self, adapter_name, vpn_ip):
         """Display detected VPN adapter name and IP."""
@@ -45,18 +61,24 @@ class StatusBar(ctk.CTkFrame):
         self._start_timer()
 
     def update_stats(self, bytes_in, bytes_out):
-        self._download_label.configure(text=f"↓ {self._format_bytes(bytes_in)}")
-        self._upload_label.configure(text=f"↑ {self._format_bytes(bytes_out)}")
+        self._download_label.configure(text=f"\u2193 {self._format_bytes(bytes_in)}")
+        self._upload_label.configure(text=f"\u2191 {self._format_bytes(bytes_out)}")
 
     def reset(self):
-        self._adapter_label.configure(text="VPN: —")
-        self._duration_label.configure(text="Duration: —")
-        self._download_label.configure(text="↓ 0 B")
-        self._upload_label.configure(text="↑ 0 B")
+        self._adapter_label.configure(text="VPN: \u2014")
+        self._duration_label.configure(text="Duration: \u2014")
+        self._download_label.configure(text="\u2193 0 B")
+        self._upload_label.configure(text="\u2191 0 B")
         self._connected = False
         if self._update_job:
             self.after_cancel(self._update_job)
             self._update_job = None
+
+    def _handle_log_toggle(self):
+        if self._on_log_toggle:
+            visible = self._on_log_toggle()
+            self._log_visible = visible
+            self._log_btn.configure(text="Log \u25b2" if visible else "Log \u25bc")
 
     def _start_timer(self):
         import time

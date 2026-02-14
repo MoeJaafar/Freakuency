@@ -1,12 +1,22 @@
-# Freakuency
+<p align="center">
+  <img src="assets/freakuency-logo-v5.svg" alt="Freakuency" width="600" style="border-radius: 8px;" />
+</p>
 
-> Per-application VPN split tunneling for Windows.
-> Pick which apps use your VPN and which go direct — works with any VPN client.
+<p align="center">
+  <b>Per-application VPN split tunneling for Windows.</b><br/>
+  Pick which apps use your VPN and which go direct — works with any VPN client.
+</p>
 
-![Status](https://img.shields.io/badge/status-alpha-orange)
-![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
-![License](https://img.shields.io/badge/license-Non--Commercial-red)
-![Python](https://img.shields.io/badge/python-3.10%2B-yellow)
+<p align="center">
+  <img src="https://img.shields.io/badge/status-alpha-orange" alt="Status" />
+  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-blue" alt="Platform" />
+  <img src="https://img.shields.io/badge/license-Non--Commercial-red" alt="License" />
+  <img src="https://img.shields.io/badge/python-3.10%2B-yellow" alt="Python" />
+</p>
+
+<p align="center">
+  <img src="assets/appscreenshot.png" alt="Freakuency Screenshot" width="600" style="border-radius: 8px;" />
+</p>
 
 ---
 
@@ -153,7 +163,8 @@ Freakuency/
 ├── build.spec              # PyInstaller build config
 ├── requirements.txt        # Dependencies
 ├── assets/
-│   └── default_icon.png    # Fallback icon
+│   ├── default_icon.png    # Fallback icon
+│   └── freakuency-logo-v5.svg  # Logo (SVG source)
 ├── core/
 │   ├── split_engine.py     # Packet interception & rewriting (WinDivert)
 │   ├── network_utils.py    # Adapter detection, routing, gateway lookup
@@ -162,9 +173,11 @@ Freakuency/
 └── ui/
     ├── main_window.py      # Window layout (CustomTkinter)
     ├── config_frame.py     # Controls — start/stop, mode, VPN info
-    ├── app_list_frame.py   # Scrollable app list with search
+    ├── app_list_frame.py   # Tabbed app list (Apps / All Processes)
     ├── app_row.py          # App row — icon, name, path, toggle
-    └── status_bar.py       # Live stats — duration, upload/download
+    ├── status_bar.py       # Live stats — duration, upload/download
+    ├── log_panel.py        # Collapsible real-time log viewer
+    └── logo.py             # Logo & icon rendering (Pillow)
 ```
 
 ## Under the hood
@@ -211,10 +224,11 @@ VPN clients override default routes with `/1` routes (`0.0.0.0/1` + `128.0.0.0/1
 
 This is an **alpha release**. The core engine works — packets get routed correctly per-application. Planned improvements:
 
-- [ ] UI overhaul and polish
-- [ ] In-app activity log / packet logging
-- [ ] Better app listing (favorites, groups, persistent app list)
-- [ ] System tray mode
+- [x] UI overhaul and polish
+- [x] In-app activity log / packet logging
+- [x] System tray mode
+- [x] Persistent app list with Active tab
+- [ ] Better app listing (favorites, groups)
 - [ ] IPv6 support
 - [ ] Auto-start on VPN connect
 
