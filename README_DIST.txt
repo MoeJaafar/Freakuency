@@ -1,5 +1,5 @@
 =======================================
-  Freakuency v0.2.0-alpha
+  Freakuency v0.3.0-alpha
   Per-app VPN split tunneling for Windows
 =======================================
 
