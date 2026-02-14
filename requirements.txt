@@ -1,0 +1,4 @@
+customtkinter>=5.2.0
+psutil>=5.9.0
+pydivert>=2.1.0
+Pillow>=10.0.0
