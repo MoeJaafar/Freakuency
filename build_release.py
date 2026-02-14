@@ -44,6 +44,13 @@ def build():
     if BUILD_DIR.exists():
         shutil.rmtree(BUILD_DIR)
 
+    # Copy extra files next to the exe (outside _internal)
+    for fname in ("cleanup_driver.bat", "README_DIST.txt"):
+        src = ROOT / fname
+        if src.exists():
+            dest_name = "README.txt" if fname == "README_DIST.txt" else fname
+            shutil.copy2(src, DIST_DIR / dest_name)
+
     print(f"\nBuild complete -> {DIST_DIR}")
 
 

@@ -6,6 +6,7 @@ Handles persistence of user settings.
 
 import json
 import logging
+import logging.handlers
 import os
 import threading
 
@@ -25,6 +26,8 @@ log = logging.getLogger(__name__)
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+LOG_FILE = os.path.join(LOG_DIR, "freakuency.log")
 
 
 class SplitTunnelApp:
@@ -35,6 +38,17 @@ class SplitTunnelApp:
             level=logging.INFO,
             format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
         )
+
+        # Persistent file logging (5 MB rotating, keep last 3 files)
+        os.makedirs(LOG_DIR, exist_ok=True)
+        file_handler = logging.handlers.RotatingFileHandler(
+            LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3,
+            encoding="utf-8",
+        )
+        file_handler.setFormatter(
+            logging.Formatter("%(asctime)s [%(name)s] %(levelname)s: %(message)s")
+        )
+        logging.getLogger().addHandler(file_handler)
 
         self._engine = SplitEngine()
         self._stats_job = None
@@ -56,6 +70,7 @@ class SplitTunnelApp:
             default_icon=default_icon,
             on_export_config=self._export_config,
             on_import_config=self._import_config,
+            on_export_logs=self._export_logs,
         )
 
         # Attach the log panel handler to the root logger so all
@@ -143,6 +158,35 @@ class SplitTunnelApp:
             log.info(f"Config imported from {path}: mode={mode}, toggled={len(toggled)} apps")
         except Exception as e:
             log.warning(f"Failed to import config: {e}")
+
+    # ------------------------------------------------------------------
+    # Log export
+    # ------------------------------------------------------------------
+
+    def _export_logs(self, path):
+        """Copy all log files into a single exported file."""
+        try:
+            # Flush handlers so the file is up to date
+            for h in logging.getLogger().handlers:
+                h.flush()
+
+            # Collect rotated log files oldest-first
+            parts = []
+            for i in range(3, 0, -1):
+                rotated = f"{LOG_FILE}.{i}"
+                if os.path.isfile(rotated):
+                    with open(rotated, "r", encoding="utf-8", errors="replace") as f:
+                        parts.append(f.read())
+            if os.path.isfile(LOG_FILE):
+                with open(LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
+                    parts.append(f.read())
+
+            with open(path, "w", encoding="utf-8") as out:
+                out.write("\n".join(parts))
+
+            log.info(f"Logs exported to {path}")
+        except Exception as e:
+            log.warning(f"Failed to export logs: {e}")
 
     # ------------------------------------------------------------------
     # Start / Stop split tunneling
@@ -363,6 +407,10 @@ class SplitTunnelApp:
             self._stop_split_engine()
         except Exception:
             pass
+        # Safety net: ensure the WinDivert kernel driver is unloaded
+        # even if the engine stop didn't fully clean up.
+        from core.split_engine import _unload_windivert_driver
+        _unload_windivert_driver()
         if self._tray_icon:
             self._tray_icon.stop()
         self._window.destroy()

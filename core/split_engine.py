@@ -11,6 +11,7 @@ Uses three threads:
 
 import logging
 import os
+import subprocess
 import threading
 import time
 
@@ -30,6 +31,33 @@ CONN_POLL_INTERVAL = 0.2
 
 # How many tracker cycles between NAT table cleanups
 NAT_CLEANUP_EVERY = 50  # ~10 seconds at 0.2s interval
+
+
+def _unload_windivert_driver():
+    """Explicitly stop and remove the WinDivert kernel driver service.
+
+    When pydivert opens a handle it loads WinDivert64.sys as a kernel
+    driver.  Even after all handles are closed the service can linger,
+    keeping the .sys file locked so the folder cannot be deleted.
+    Calling ``sc stop`` + ``sc delete`` forces the kernel to release it.
+    """
+    for svc in ("WinDivert", "WinDivert1.3", "WinDivert14", "WinDivert1.4"):
+        try:
+            subprocess.run(
+                ["sc", "stop", svc],
+                capture_output=True, timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+        except Exception:
+            pass
+        try:
+            subprocess.run(
+                ["sc", "delete", svc],
+                capture_output=True, timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+        except Exception:
+            pass
 
 
 def _norm_path(p):
@@ -183,6 +211,11 @@ class SplitEngine:
         self._conn_table = {}
         self._port_table = {}
         self._pid_cache = {}
+
+        # Force-unload the WinDivert kernel driver so the .sys file
+        # is released and the install folder can be deleted cleanly.
+        _unload_windivert_driver()
+
         log.info("Split engine stopped.")
 
     def update_policy(self, toggled_apps):

@@ -37,13 +37,15 @@ class MainWindow(ctk.CTk):
     def __init__(self, on_start=None, on_stop=None,
                  on_mode_change=None, on_toggle=None,
                  on_close=None, on_exit=None, default_icon=None,
-                 on_export_config=None, on_import_config=None):
+                 on_export_config=None, on_import_config=None,
+                 on_export_logs=None):
         super().__init__()
 
         self._on_close = on_close      # X button (hide to tray)
         self._on_exit = on_exit        # File > Exit (full quit)
         self._on_export_config = on_export_config
         self._on_import_config = on_import_config
+        self._on_export_logs = on_export_logs
 
         self.title(f"{_APP_NAME} v{_VERSION}")
         self.geometry("700x800")
@@ -134,6 +136,8 @@ class MainWindow(ctk.CTk):
             None,
             {"label": "Export Config...", "command": self._export_config},
             {"label": "Import Config...", "command": self._import_config},
+            None,
+            {"label": "Export Logs...", "command": self._export_logs},
             None,
             {"label": "Exit", "command": self._menu_exit},
         ]
@@ -229,6 +233,18 @@ class MainWindow(ctk.CTk):
             return
         if self._on_import_config:
             self._on_import_config(path)
+
+    def _export_logs(self):
+        path = filedialog.asksaveasfilename(
+            title="Export Logs",
+            defaultextension=".log",
+            filetypes=[("Log files", "*.log"), ("Text files", "*.txt"), ("All files", "*.*")],
+            initialfile="freakuency_logs.log",
+        )
+        if not path:
+            return
+        if self._on_export_logs:
+            self._on_export_logs(path)
 
     def _menu_exit(self):
         if self._on_exit:

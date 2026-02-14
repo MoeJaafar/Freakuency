@@ -88,6 +88,8 @@ Three threads run concurrently:
 - **System tray** — minimize to tray, start/stop from tray icon
 - **Right-click menus** — open file location, copy path on any app row
 - **Collapsible log panel** — real-time activity log
+- **Log export** — persistent file logging with one-click export for bug reports
+- **Driver cleanup** — automatic WinDivert driver unload on exit + standalone cleanup script
 - **Race-free routing** — synchronous port-to-process lookup ensures new connections are routed correctly from the very first packet
 
 ## Requirements
@@ -165,6 +167,7 @@ Freakuency/
 ├── app.py                  # Application controller
 ├── build.spec              # PyInstaller build config
 ├── build_release.py        # Build + zip packaging script
+├── cleanup_driver.bat      # WinDivert driver cleanup (ships in build)
 ├── requirements.txt        # Dependencies
 ├── assets/
 │   ├── default_icon.png    # Fallback icon
@@ -220,6 +223,32 @@ VPN clients override default routes with `/1` routes (`0.0.0.0/1` + `128.0.0.0/1
 | [pydivert](https://github.com/ffalcinelli/pydivert) | WinDivert bindings (kernel packet capture) |
 | [Pillow](https://github.com/python-pillow/Pillow) | Icon extraction & image processing |
 | [pystray](https://github.com/moses-palmer/pystray) | System tray icon & menu |
+
+## Troubleshooting
+
+### Can't delete the Freakuency folder (WinDivert64.sys locked)
+
+Freakuency uses WinDivert, a kernel-mode driver that intercepts network packets. When the app exits normally (via **File > Exit** or the tray icon), it automatically unloads the driver and releases all files.
+
+If the app crashed or was force-killed, the driver may still be loaded and lock `WinDivert64.sys`. To fix this:
+
+1. Right-click **`cleanup_driver.bat`** (included next to `Freakuency.exe`) and select **Run as administrator**
+2. The script stops and removes the WinDivert driver service
+3. You can now delete the folder
+
+If the file is still locked after running the script, restart your PC — the driver will be fully unloaded on reboot.
+
+> **Tip:** Always exit Freakuency through **File > Exit** or the **tray icon > Exit** to ensure clean shutdown.
+
+### Exporting logs for bug reports
+
+Freakuency writes persistent logs to a `logs/` folder next to the executable. To share logs:
+
+1. Go to **File > Export Logs...**
+2. Save the `.log` file anywhere
+3. Attach it to your [GitHub issue](https://github.com/MoeJaafar/Freakuency/issues)
+
+Log files rotate automatically (5 MB per file, up to 4 files kept).
 
 ## Limitations
 
