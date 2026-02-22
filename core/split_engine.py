@@ -69,6 +69,9 @@ CONN_POLL_INTERVAL = 0.2
 NAT_CLEANUP_EVERY = 50  # ~10 seconds at 0.2s interval
 
 
+WINDIVERT_SERVICE_NAMES = ("WinDivert", "WinDivert1.3", "WinDivert14", "WinDivert1.4")
+
+
 def _unload_windivert_driver():
     """Explicitly stop and remove the WinDivert kernel driver service.
 
@@ -77,7 +80,7 @@ def _unload_windivert_driver():
     keeping the .sys file locked so the folder cannot be deleted.
     Calling ``sc stop`` + ``sc delete`` forces the kernel to release it.
     """
-    for svc in ("WinDivert", "WinDivert1.3", "WinDivert14", "WinDivert1.4"):
+    for svc in WINDIVERT_SERVICE_NAMES:
         try:
             subprocess.run(
                 ["sc", "stop", svc],
@@ -94,6 +97,52 @@ def _unload_windivert_driver():
             )
         except Exception:
             pass
+
+
+def _preload_windivert_driver():
+    r"""Pre-register and start the WinDivert kernel driver service.
+
+    WinDivert 1.x (bundled with pydivert) passes the .sys path to
+    Windows CreateService() without the ``\??\`` NT device-path prefix.
+    When the installation path contains spaces or special characters the
+    Service Control Manager cannot resolve it and returns
+    ERROR_FILE_NOT_FOUND ([WinError 2]).
+
+    This function registers the service ourselves using the NT path
+    format (``\??\C:\…\WinDivert64.sys``) so that when pydivert calls
+    WinDivertOpen() it finds an already-running driver and skips its
+    own (broken) installation step.
+    """
+    try:
+        from pydivert import windivert_dll
+        dll_dir = os.path.dirname(os.path.abspath(windivert_dll.__file__))
+    except Exception:
+        return
+
+    arch = "64" if platform.architecture()[0] == "64bit" else "32"
+    sys_path = os.path.join(dll_dir, f"WinDivert{arch}.sys")
+    if not os.path.isfile(sys_path):
+        return
+
+    nt_path = f"\\??\\{sys_path}"
+
+    for svc in WINDIVERT_SERVICE_NAMES:
+        try:
+            subprocess.run(
+                ["sc", "create", svc, "type=", "kernel", "binPath=", nt_path],
+                capture_output=True, timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            result = subprocess.run(
+                ["sc", "start", svc],
+                capture_output=True, timeout=10,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            if result.returncode == 0:
+                log.info(f"Pre-loaded WinDivert driver via service '{svc}'")
+                return
+        except Exception:
+            continue
 
 
 def _norm_path(p):
@@ -173,6 +222,11 @@ class SplitEngine:
         ok, detail = _check_windivert_files()
         if not ok:
             raise RuntimeError(detail)
+
+        # Remove stale driver services (old path / other app) then
+        # pre-register with the NT path prefix so paths with spaces work.
+        _unload_windivert_driver()
+        _preload_windivert_driver()
 
         if self._running:
             self.stop()
