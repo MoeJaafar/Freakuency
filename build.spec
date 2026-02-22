@@ -14,24 +14,19 @@ import importlib
 
 block_cipher = None
 
-# Locate pydivert package to bundle WinDivert binaries
+# Locate pydivert package to bundle WinDivert binaries.
+# The DLL/SYS files live in pydivert/windivert_dll/ — we must place them
+# in the same relative path inside the bundle so pydivert can find them.
 pydivert_path = os.path.dirname(importlib.import_module("pydivert").__file__)
 windivert_binaries = []
-for fname in os.listdir(pydivert_path):
-    if fname.lower().startswith("windivert") and (
-        fname.endswith(".dll") or fname.endswith(".sys")
-    ):
-        windivert_binaries.append(
-            (os.path.join(pydivert_path, fname), ".")
-        )
-
-# Also check pydivert/lib subdirectory
-lib_dir = os.path.join(pydivert_path, "lib")
-if os.path.isdir(lib_dir):
-    for fname in os.listdir(lib_dir):
-        if fname.lower().startswith("windivert"):
+dll_dir = os.path.join(pydivert_path, "windivert_dll")
+if os.path.isdir(dll_dir):
+    for fname in os.listdir(dll_dir):
+        if fname.lower().startswith("windivert") and (
+            fname.endswith(".dll") or fname.endswith(".sys")
+        ):
             windivert_binaries.append(
-                (os.path.join(lib_dir, fname), ".")
+                (os.path.join(dll_dir, fname), os.path.join("pydivert", "windivert_dll"))
             )
 
 a = Analysis(

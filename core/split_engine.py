@@ -11,6 +11,7 @@ Uses three threads:
 
 import logging
 import os
+import platform
 import subprocess
 import threading
 import time
@@ -25,6 +26,41 @@ except ImportError:
 from core.port_lookup import get_pid_for_tcp_port, get_pid_for_udp_port
 
 log = logging.getLogger(__name__)
+
+
+def _check_windivert_files():
+    """Verify that WinDivert DLL and SYS files are present on disk.
+
+    Returns (ok, detail) where *ok* is True when files are found and
+    *detail* is a human-readable message when they are missing.
+    """
+    try:
+        from pydivert import windivert_dll
+        dll_dir = os.path.dirname(os.path.abspath(windivert_dll.__file__))
+    except Exception:
+        return False, "Could not locate the pydivert WinDivert directory."
+
+    arch = "64" if platform.architecture()[0] == "64bit" else "32"
+    dll_name = f"WinDivert{arch}.dll"
+    sys_name = f"WinDivert{arch}.sys"
+    dll_path = os.path.join(dll_dir, dll_name)
+    sys_path = os.path.join(dll_dir, sys_name)
+
+    missing = []
+    if not os.path.isfile(dll_path):
+        missing.append(dll_name)
+    if not os.path.isfile(sys_path):
+        missing.append(sys_name)
+
+    if missing:
+        return False, (
+            f"Missing WinDivert files: {', '.join(missing)}\n"
+            f"Expected location: {dll_dir}\n\n"
+            "This is usually caused by antivirus software quarantining "
+            "WinDivert (a kernel-mode driver). Please add the Freakuency "
+            "folder to your antivirus exclusions and re-extract the archive."
+        )
+    return True, ""
 
 # How often to refresh the connection table (seconds)
 CONN_POLL_INTERVAL = 0.2
@@ -116,6 +152,10 @@ class SplitEngine:
         self._inbound_handle = None
         self._handle_lock = threading.Lock()
 
+        # Startup synchronization: interceptor threads signal success/failure
+        self._startup_error = None
+        self._startup_barrier = threading.Barrier(3, timeout=10)  # 2 interceptors + main
+
     @property
     def running(self):
         return self._running
@@ -128,6 +168,11 @@ class SplitEngine:
             raise RuntimeError(
                 "pydivert is not installed. Install it with: pip install pydivert"
             )
+
+        # Pre-flight: verify WinDivert binaries are present on disk
+        ok, detail = _check_windivert_files()
+        if not ok:
+            raise RuntimeError(detail)
 
         if self._running:
             self.stop()
@@ -145,6 +190,8 @@ class SplitEngine:
         self._port_table = {}
         self._pid_cache = {}
         self._nat_table = {}
+        self._startup_error = None
+        self._startup_barrier = threading.Barrier(3, timeout=10)
 
         # Add routes through the real gateway so redirected packets
         # have a valid path to the internet on the default interface
@@ -168,6 +215,22 @@ class SplitEngine:
 
         for t in self._threads:
             t.start()
+
+        # Wait for both interceptor threads to signal that WinDivert opened OK
+        try:
+            self._startup_barrier.wait()
+        except threading.BrokenBarrierError:
+            pass
+
+        if self._startup_error:
+            err = self._startup_error
+            self.stop()
+            raise RuntimeError(
+                f"Failed to start packet interception:\n{err}\n\n"
+                "This is usually caused by antivirus software blocking "
+                "WinDivert. Please add the Freakuency folder to your "
+                "antivirus exclusions and try again."
+            )
 
         log.info(
             f"Split engine started: mode={mode}, vpn_ip={vpn_ip}, "
@@ -339,7 +402,18 @@ class SplitEngine:
                 self._outbound_handle = w
         except Exception as e:
             log.error(f"Failed to open WinDivert for outbound: {e}")
+            self._startup_error = str(e)
+            try:
+                self._startup_barrier.wait()
+            except threading.BrokenBarrierError:
+                pass
             return
+
+        # Signal successful open
+        try:
+            self._startup_barrier.wait()
+        except threading.BrokenBarrierError:
+            pass
 
         # Cache instance attrs as locals — avoids self.X dict lookup per packet
         send = w.send
@@ -445,7 +519,18 @@ class SplitEngine:
                 self._inbound_handle = w
         except Exception as e:
             log.error(f"Failed to open WinDivert for inbound: {e}")
+            self._startup_error = str(e)
+            try:
+                self._startup_barrier.wait()
+            except threading.BrokenBarrierError:
+                pass
             return
+
+        # Signal successful open
+        try:
+            self._startup_barrier.wait()
+        except threading.BrokenBarrierError:
+            pass
 
         send = w.send
         recv = w.recv
